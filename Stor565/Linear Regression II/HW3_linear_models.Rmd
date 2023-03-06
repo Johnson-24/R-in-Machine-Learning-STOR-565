@@ -1,0 +1,236 @@
+---
+title: "STOR 565 Homework 3"
+output:
+  html_document:
+    includes:
+      in_header: "preamble.tex"
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+## install.packages("ISLR")   # if you don't have this package, run it
+library("ISLR")
+library(MASS)
+```
+
+Name:Qingcheng Wei
+
+**This homework is due on Feb. 1st at 11:55 pm.** You must submit **your own** homework as knitted HTML/PDF file.
+
+*Remark.* This homework aims to help you go through the necessary preliminary from linear regression. Even if some of the questions ask for things related to linear regression that you might not have seen before, read up online about these concepts and answer the questions to the best of your ability. I also uploaded a file named "how_fit_linear_models_with_r.html" to give you a brief introduction on how to fit lm in R.  
+
+## Computational Part
+
+1. (*21 pt*, 7 total sub parts each 3 pts) Consider the dataset "Boston" in predicting the crime rate at Boston with associated covariates.
+
+    ```{r Boston}
+    head(Boston)
+    ```
+    Suppose you would like to predict the crime rate with explantory variables
+
+    - `medv`: median value of owner-occupied homes;
+    - `dis`: weighted mean of distances to employement centers;
+    - `indus`: proportion of non-retail business acres.
+
+    ```{r lm}
+    mod1 <- lm(crim ~ medv + dis + indus, data = Boston)
+    summary(mod1)
+    ```
+    Answer the following questions.
+
+(i) What do the following quantities that appear in the above output mean in the linear model? Provide a breif description.
+
+    - `t value` and `Pr(>|t|)` of `medv`;
+    - `Multiple R-squared`;
+    - `F-statistic`, `DF` and corresponding `p-value`.
+    
+1. The t value in this case is used to test the significance of the coefficient before the variable 'medv'. This t value is tested with the hypothesis that the coefficient is equal to 0. And the Pr(>|t|) is the p value given the t value which is the probability of getting this t value if the hypothesis is true. In this case, the t value is 5.503 and p value is 5.98e-08 which indicates that this coefficient is significant and it in turn justifies that this variable is significant. 
+
+2. The Multiple R squared like the professor explained in the class indicates the proportion of the variance in the dependent variable is explained by the independent variables in the regression model which in this case is the variables: medv, dis, indus. 
+
+3. The F statistics is used to test the overall significance of the independent variables in this model. The "DF" is the degrees of freedom. And the p value is the probability of getting this F statistics given the null hypothesis is true which is the coefficients of all three variables are equal to 0. The low p value suggests that crim is associated with all the predictors. 
+
+(ii) Are the following sentences True of False? Briefly justify your answer.
+
+- `indus` is not a significant predictor of crim at the 0.1 level.
+False, given 0.1 significance level, the probability falls below this threshold. 
+
+- `Multiple R-squared` is preferred to `Adjusted R-squared` as it takes into account all the variables.
+False, the Adjusted R-squared takes into account of all the predictors whereas Multiple R-squared is not. So Adjusted R-squared is a better metric. 
+
+- `medv` has a negative effect on the response.
+True, since the medv variable has coefficient smaller than 0 and it's significant suggested by the the probability of t value smaller than 0.1.
+
+- Our model residuals appear to be normally distributed.
+False, the two tests which have p value extremely small suggest that the residuals are not normally distributed. 
+
+    **Hint.** You need to access to the model residuals in justifying the last sentence. The following commands might help.
+    
+    ```{r, eval=FALSE}
+    # Obtain the residuals
+    res1 <- residuals(mod1)
+
+    # Normal QQ-plot of residuals
+    plot(mod1, 2)
+    
+    # Conduct a Normality test via Shapiro-Wilk and Kolmogorov-Smirnov test
+    shapiro.test(res1)
+    ks.test(res1, "pnorm")
+    ```
+
+2. (*24 pt*, 4 parts each worth 6pts) For this exercise, we will use a dataset with summary information about American colleges and universities in 2013. The following code chunk retrieves it directly from the website, saving you from having to download it. The data is saved in the object called `amcoll`. 
+
+    ```{r}
+    amcoll <- read.csv('College.csv')
+    ```
+
+    Suppose that we are curious about what factors at a university play an important role in the room and board each semester (column `Room.Board`). Answer the following questions.
+ 
+(a) Based on some research into the area, you believe that the five most important predictors for the room and board amount are 
+
+    - `Accept`: the number of students who accepted admission;
+    - `Enroll`: the number of students who are currently enrolled;
+    - `Outstate`: the out of state tuition for a semester;
+    - `Books`: the average cost of books per year;
+    - `Grad.Rate`: the graduation rate of the students.
+
+    Plot a pairwise scatterplot of these variables along with the room and board cost, and comment on any trends. If you don't know how to plot such a scatterplot, see, for example:
+
+ 	
+    - [Scatter Plot Matrices - R Base Graphs](http://www.sthda.com/english/wiki/scatter-plot-matrices-r-base-graphs)
+ 	
+    - [Notes on `ggplot2`](http://dept.stat.lsa.umich.edu/~jerrick/courses/stat701/notes/ggplot2.html)
+
+    Include your pairwise scatter plot as part of what you turn in. 
+    
+```{r}
+library(ggplot2)
+ggplot(amcoll,
+       aes(x = Accept,
+           y = Room.Board)) + 
+  geom_point() + 
+  geom_smooth() + 
+  geom_smooth(method = 'lm', color = 'seagreen')
+
+ggplot(amcoll,
+       aes(x = Enroll,
+           y = Room.Board)) + 
+  geom_point() + 
+  geom_smooth() + 
+  geom_smooth(method = 'lm', color = 'seagreen')
+
+ggplot(amcoll,
+       aes(x = Outstate,
+           y = Room.Board)) + 
+  geom_point() + 
+  geom_smooth() + 
+  geom_smooth(method = 'lm', color = 'seagreen')
+
+ggplot(amcoll,
+       aes(x = Books,
+           y = Room.Board)) + 
+  geom_point() + 
+  geom_smooth() + 
+  geom_smooth(method = 'lm', color = 'seagreen')
+
+ggplot(amcoll,
+       aes(x = Grad.Rate,
+           y = Room.Board)) + 
+  geom_point() + 
+  geom_smooth() + 
+  geom_smooth(method = 'lm', color = 'seagreen')
+
+```
+
+Based on the model, the Grad.Rate and Outstate in particular suggests an association with the Room.Board variable
+
+(b) Run a linear model of `Room.Board` on the 5 features above. Suppose we decide that $.01$ is our level of significance (so p-values have to be below $.01$ to count as significant). Discuss the findings of your linear model. In particular you should find that one of the features is **not** significant. 
+
+```{r}
+model=lm(Room.Board~Accept+Enroll+Outstate+Grad.Rate+Books,data=amcoll)
+summary(model)
+```
+
+Based on the final result and looking at the Prob value of each of t value for each coefficient. Grad.Rate is not significant cuz its p value is higher than 0.01.
+ 	
+(c) Write a function `kfold.cv.lm()` which performs the following. You can either write this from scracth or use any standard package in R or see the book for example code etc. 
+
+    **Inputs**: 
+	 
+    - `k`: integer number of disjoint sets
+    - `seed`: numeric value to set random number generator seed for reproducability
+    - `X`: $n \times p$ design matrix
+    - `y`: $n \times 1$ numeric response
+    - `which.betas`: $p \times 1$ logical specifying which predictors to be included in a regression
+
+    **Outputs**: a vector of 
+    
+    \begin{align*}
+      \mathtt{Avg.MSE}  &= {1 \over 10}\sum_{i=1}^{10}(\text{the $i$-th within-fold MSE});\\
+      \mathtt{Avg.MSPE} &= {1 \over 10}\sum_{i=1}^{10}(\text{the $i$-th out-of-fold MSE}),
+    \end{align*}
+    
+    where the $i$-th within-fold MSE is obtained from training on the data other than the $i$-th fold and predicting on the training data; while the $i$-th out-of-fold MSE is obtained from training on the data other than the $i$-th fold and predicting on the $i$-th fold data.
+
+    **Description**: performing $k$-fold cross-validation on the linear regression model of $y$ on $X$ for predictors indicated by `which.betas`. It returns both the averaged MSE based on the training data and the averaged MSPE based on the "test" data.
+  
+```{r}
+kfold.cv.lm <- function(k, seed, X, y, which.betas){
+  set.seed(seed)
+  n <- nrow(X)
+  fold_index <- sample(rep(1:k, length.out = n))
+  avg.mse <- avg.mspe <- 0
+  
+  for(i in 1:k){
+    test_index <- which(fold_index == i)
+    train_index <- which(fold_index != i)
+    
+    X_train <- X[train_index, which.betas]
+    y_train <- y[train_index]
+    X_test <- X[test_index, which.betas]
+    y_test <- y[test_index]
+    
+  
+    data=data.frame(y_train,X_train)
+    
+    fit <- lm(y_train~.,data=data)
+    
+    y_pred_train <- predict(fit, X_train)
+    
+    y_pred_test <- predict(fit, X_test)
+    
+    avg.mse <- avg.mse + mean((y_pred_train - y_train)^2) / k
+    
+    avg.mspe <- avg.mspe + mean((y_pred_test - y_test)^2) / k
+  }
+  return(c(Avg.MSE = avg.mse, Avg.MSPE = avg.mspe))
+}
+
+```
+  
+
+(d) Use your function `kfold.cv.lm()` to perform 10 folder cross validation on the college data for the following two models: 
+
+    - the full model on the 5 features above; 
+    - the model where you leave out the feature you found to be insgnificant in (b).
+
+    Which of the two is a "better" model and why? Indicate your comparing criteria.
+    
+```{r}
+library(dplyr)
+X<-amcoll %>% select(-Room.Board)
+y<-as.numeric(amcoll$Room.Board)
+which.beta<-c("Accept","Enroll","Grad.Rate","Books","Outstate")
+kfold.cv.lm(10,10,X,y,which.beta)
+
+X<-amcoll %>% select(-Room.Board)
+y<-as.numeric(amcoll$Room.Board)
+which.beta<-c("Accept","Enroll","Books","Outstate")
+kfold.cv.lm(10,10,X,y,which.beta)
+
+```
+
+By comparison, the testing error for the first model excluding the insignificant variable performs slightly better than the first model including the variable. 
+
+***

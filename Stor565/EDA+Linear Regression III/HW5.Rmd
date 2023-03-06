@@ -1,0 +1,685 @@
+---
+title: "Homework 5 (Computational)"
+author: "YOUR NAME"
+output:
+  html_document:
+    number_sections: TRUE
+header-includes: 
+  \usepackage{amsgen,amsmath,amstext,amsbsy,amsopn,amssymb,mathabx,amsthm,bm,bbm}
+  \usepackage{fancyhdr}
+  \pagestyle{fancy}
+  \fancyhead[R]{\rightmark}
+  \lhead{\fancyplain{}{\bf Question Outline \thesubsection}}
+  \setcounter{secnumdepth}{2}
+  \renewcommand{\linethickness}{0.05em}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if(!require(ISLR)) { install.packages("ISLR", repos = "http://cran.us.r-project.org"); library(ISLR) }
+if(!require(leaps)) { install.packages("leaps", repos = "http://cran.us.r-project.org"); library(leaps) }
+if(!require(glmnet)) { install.packages("glmnet", repos = "http://cran.us.r-project.org"); library(glmnet) }
+if(!require(pls)) { install.packages("pls", repos = "http://cran.us.r-project.org"); library(pls) }
+```
+
+# Instuctions {-}
+
+
+Name:
+
+Collaborated with:
+
+**This homework is due on Feb. 16th at 11:55 pm.** You can collaborate with your classmates, but you must identify their names above, and you must submit **your own** homework as knitted HTML/PDF file to Canvas
+
+Instruction: fill your answers in the `.Rmd`, compile it to HTML/PDF and submit the complied file. Uncompiled `.Rmd` file will not be graded. 
+
+
+Total score of this HM is: 
+
+# Model Selection
+
+## Model Selection (I) (Total score: 25)
+
+### (a) [2 points] Use the `rnorm` function to generate a predictor $\bf{X}$ of length $n = 100$, as well as a noise vector $\bf{\epsilon}$ of length $n = 100$. Do not print the entire vector, just the code you would use to obtain the above.
+
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+set.seed(100)
+X=rnorm(100)
+noise_vec=rnorm(100)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (b) [3 points] Generate a response vector $\bf{Y}$ of length $n = 100$ according to the model $$ Y = \beta_0 + \beta_1 X + \beta_2 X^2 + \beta_3 X^3 + \epsilon, $$ where $\beta_0 = 3$, $\beta_1 = 2$, $\beta_2 = -3$, $\beta_3 = 0.3$. Do not print the entire vector, just the code you would use to obtain the above.
+
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+Y=3+2*X-3*X^2+0.3*X^3+noise_vec
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (c) [5 points] Use the `regsubsets` function from `leaps` package to perform best subset selection in order to choose the best model containing the predictors $(X, X^2, \cdots, X^{10})$. What is the best model obtained according to $C_p$, BIC, and adjusted $R^2$? Show some plots to provide evidence for your answer, and report the coefficients of the best model obtained.
+    
+
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+require(leaps)
+require(tidyverse);
+require(ggplot2);
+require(ggthemes);
+
+df <- data.frame(Y, X)
+fit <- regsubsets(Y ~ poly(X, 10), data = df, nvmax = 10)
+
+fit_summary <- summary(fit)
+
+data_frame(Cp = fit_summary$cp,
+           BIC = fit_summary$bic,
+           AdjR2 = fit_summary$adjr2) %>%
+    mutate(id = row_number()) %>%
+    gather(value_type, value, -id) %>%
+    ggplot(aes(id, value, col = value_type)) +
+    geom_line() + geom_point() + ylab('') + xlab('Number of variables') +
+    facet_wrap(~ value_type, scales = 'free') +
+    theme_tufte() + scale_x_continuous(breaks = 1:10)
+```
+
+```{r}
+coefficients(fit, id=3)
+```
+
+The coefficients are as above of the best model. The best model according to the three value types result in the same model with three variables which have demonstrated on the plot above which showed decrease in accuracy when it passed three. 
+<!-- YOUR ANSWER ENDS -->
+
+\newpage
+
+### (d) [5 points]  Repeat (c), using forward stepwise selection and also using backwards stepwise selection. How does your answer compare to the results in (c)? You must show a summary of the selected model or other evidence to support your statements.
+    
+
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+library(caret)
+back <- train(Y ~ poly(X, 10), data = df, 
+               direction = 'backward',   method = 'glmStepAIC',
+                    trace = 0,
+               trControl = trainControl(method = 'none', verboseIter = FALSE))
+
+postResample(predict(back, df), df$Y)
+```
+
+```{r}
+summary(back$finalModel)
+```
+
+```{r}
+x_poly <- poly(df$X, 10)
+
+colnames(x_poly) <- paste0('poly', 1:10)
+forward <- train(y = Y, x = x_poly,
+                    method = 'glmStepAIC', direction = 'forward',
+                    trace = 0,
+               trControl = trainControl(method = 'none', verboseIter = FALSE))
+
+postResample(predict(forward, data.frame(x_poly)), df$Y)
+```
+
+```{r}
+summary(forward$finalModel)
+```
+
+The forward and backward methods all suggest that the final model is the same with the best subsets methods.
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (e) [5 points] Now fit a LASSO model with `glmnet` function from `glmnet` package to the simulated data, again using $(X,X^2,\cdots,X^{10})$ as predictors. Use 5-fold cross-validation to select the optimal value of $\lambda$. Create plots of the cross-validation error as a function of $\lambda$. Report the resulting coefficient estimates, and discuss the results obtained.
+    
+    
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+matrix_x=as.matrix(data.frame(X,X2=X^2,X3=X^3,X4=X^4,X5=X^5,X6=X^6,X7=X^7,X8=X^8,X9=X^9,X10=X^10,noise_vec),ncol=11)
+cv.out <- cv.glmnet(matrix_x,Y,alpha=1,nfolds=5)
+plot(cv.out)
+
+cat("Lambda with smallest CV Error",
+cv.out$lambda[which.min(cv.out$cvm)],fill=TRUE)
+
+model=glmnet(matrix_x,Y,alpha=1,lambda=cv.out$lambda[which.min(cv.out$cvm)])
+coef(model)
+
+cat("Number of Zero Coefficients",
+sum(abs(coef(model))<1e-8),fill=TRUE)
+```
+
+The best lambda value to reduce the coefficients is 0.06873642
+The resulting coefficients estimates follows 2.927628 1.964837 -2.924659 0.2789723 0 0 0 0 0 0 0 0.87605182 from intercept to noise_vec which are different from the coefficients obtained above but most aligned with the real coefficients. As a result, Lasso has shown a great accuracy in coefficient calculation. 
+<!-- YOUR ANSWER ENDS -->
+
+
+\newpage
+
+## Model Selection (II)
+
+### (f) [5 points] Now generate a response vector $Y$ according to the model $$Y = \beta_0 + \beta_7 X^7 + \epsilon,$$ where $\beta_7 = 7$, and perform best subset selection and the LASSO. Discuss the results obtained.
+    
+
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+Y_new=3+7*X^7+noise_vec
+
+df_2 <- data_frame(Y_new = Y_new, X = df[,-1])
+
+fit <- regsubsets(Y_new ~ poly(X, 10), data = df_2, nvmax = 10)
+
+fit_summary <- summary(fit)
+
+data_frame(Cp = fit_summary$cp,
+           BIC = fit_summary$bic,
+           R2 = fit_summary$adjr2) %>%
+    mutate(id = row_number()) %>%
+    gather(value_type, value, -id) %>%
+    ggplot(aes(id, value, col = value_type)) +
+    geom_line() + geom_point() + ylab('') + xlab('Number of Variables Used') +
+    facet_wrap(~ value_type, scales = 'free') +
+    theme_tufte() + scale_x_continuous(breaks = 1:10)
+```
+
+```{r}
+coefficients(fit, id=7)
+```
+
+```{r}
+matrix_x=as.matrix(data.frame(X,X2=X^2,X3=X^3,X4=X^4,X5=X^5,X6=X^6,X7=X^7,X8=X^8,X9=X^9,X10=X^10,noise_vec),ncol=11)
+cv.out <- cv.glmnet(matrix_x,Y_new,alpha=1,nfolds=5)
+plot(cv.out)
+
+cat("Lambda with smallest CV Error",
+cv.out$lambda[which.min(cv.out$cvm)],fill=TRUE)
+
+model=glmnet(matrix_x,Y_new,alpha=1,lambda=cv.out$lambda[which.min(cv.out$cvm)])
+coef(model)
+
+cat("Number of Zero Coefficients",
+sum(abs(coef(model))<1e-8),fill=TRUE)
+
+```
+In comparison, Lasso estimates the variables just right while the best subset selection method would overestimate the number of variables which reach to 7 variables
+
+<!-- YOUR ANSWER ENDS -->
+
+
+\newpage
+    
+# Prediction
+
+In this exercise, we will try to develop a prediction model for wins in a basketball season for a team based on a host of other factors. The starting point is to load the nba-teams-2017 data set (which was scraped by Gaston Sanchez at Berkeley). This is in the same folder as this Rmd file. 
+
+## Prediction (I) (Total score: 10)
+
+### (a) [8 points] Do some exploratory data analysis by picking 6-7 features that you think might be interesting and explore relationship between these features by making a scatterplot matrix like the **scatterplot.pdf** or **rplot.jpg** file in the HW3 folder.
+
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+library(ggplot2)
+library(GGally)
+
+bball_data <- read.csv('nba-teams-2017.csv')
+head(bball_data)
+bball_data2=bball_data[,c("points","wins","field_goals","free_throws","points3","steals","turnovers")]
+ggpairs(bball_data2) + 
+  ggtitle("EDA of 2017 NBA Data")
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+
+
+\newpage
+
+### (b)[2 points] The aim is now to predict *wins* based on the other features. First explain why you would remove the "losses" column from the above data set? Would you necessarily remove any other columns?
+
+<!-- YOUR ANSWER BEGINS -->
+The reason I remove losses because losses is directly correlated with wins by using 82-wins. We can not uses losses to explore the relationship with wins. I would also remove column like games_played cuz every team is the same 82 and the variable team cuz it's not numerical.
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+ 
+## Prediction (II) (Total score: 10)
+
+### (c) [5 points] Use ridge regression with 5 fold cross-validation to choose the optimal tuning parameter and report your model along with your test error as found by cross-validation for that choice of $\lambda$.
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+y=bball_data$wins
+x=data.matrix(bball_data[,!(names(bball_data)%in%c("games_played","team","wins","losses"))])
+cv.out=cv.glmnet(x,y,nfold=5,alpha=0)
+
+plot(cv.out)
+
+cat("Lambda with smallest CV Error",
+cv.out$lambda[which.min(cv.out$cvm)],fill=TRUE)
+```
+
+
+<!-- YOUR ANSWER ENDS -->
+
+\newpage
+
+### (d) [5 points] Fit a LASSO model on the training set, with $\lambda$ chosen by 5-fold cross-validation. Report the test error obtained, along with the number of non-zero coefficient estimates.
+
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+cv_lasso=cv.glmnet(x,y,nfold=5,alpha=1)
+best_model=glmnet(x,y,alpha=1,lambda=cv_lasso$lambda[which.min(cv_lasso$cvm)])
+coef(best_model)
+
+cat("Number of non-Zero Coefficients",
+sum(abs(coef(best_model))>1e-8),fill=TRUE)
+
+best_lambda=cv.out$lambda[which.min(cv.out$cvm)]
+y_predicted <- predict(best_model, s = best_lambda, newx = x)
+mse=mean((y_predicted-y)^2)
+cat("The training error of this model is ", mse)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage 
+
+# High-Dimension Experiment (Sparse) {#sec:exp-sparse}
+
+Let us now try to understand the performance of the various techniques on simulated data to get insight. Suppose your true model is  $\mathbf{y}=\mathbf{X\beta} + \mathbf{\epsilon}$ where:
+
+- Sparse coefficient vector $\mathbf{\beta}=(\underbrace{1,...,1}_{20}, \underbrace{0,...,0}_{1980})^T$;
+
+- $p=2000 > n=1000$;
+
+- Uncorrelated predictors: $\mathbf{X}_i \overset{\text{iid}}{\sim} N(\mathbf{0}, \mathbf{I})$. Precisely for the $i$-th individual, $\mathbf{X}_i = (X_{i1}, X_{i2}, \ldots, X_{i,2000})$ where $X_{i,j}$ are independent and identically distributed normal random variables with mean zero and variance one;
+
+- $\mathbf{\epsilon} \overset{\text{iid}}{\sim} N(\mathbf{0},\mathbf{I})$. Precisely: $\mathbf{\epsilon} = (\epsilon_1, \epsilon_2, \ldots, \epsilon_{1000})$ where $\epsilon_i$ are independent and identically distributed normal random variables with mean zero and variance 1. 
+
+## High-Dimension Experiment (Sparse) (I) (Total score: 15)
+
+### (a) [5 pts] Generate the above data with seed = 1234
+
+
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+set.seed(1234)
+xtr <- matrix(rnorm(1000*2000),ncol=2000)
+beta <- c(rep(1,20),rep(0,1980))
+ytr <- xtr%*%beta + rnorm(1000)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+
+\newpage
+
+### (b) [10 pts, 3 parts each worth 5 pts] Using `glmnet` fit Lasso, ridge regression and elastic net with $\alpha = .1,.2,.3,.4,.5,.6,.7, .8, .9$. What I am looking for: (outputting the entire model for each one of the above might be hard so)
+
+#### (b.1) Code showing the fitting of each of the above models;
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+lasso=glmnet(xtr,ytr,alpha=1,lambda=1)
+glmnet1=glmnet(xtr,ytr,alpha=0.1,lambda=1)
+glmnet2=glmnet(xtr,ytr,alpha=0.2,lambda=1)
+glmnet3=glmnet(xtr,ytr,alpha=0.3,lambda=1)
+glmnet4=glmnet(xtr,ytr,alpha=0.4,lambda=1)
+glmnet5=glmnet(xtr,ytr,alpha=0.5,lambda=1)
+glmnet6=glmnet(xtr,ytr,alpha=0.6,lambda=1)
+glmnet7=glmnet(xtr,ytr,alpha=0.7,lambda=1)
+glmnet8=glmnet(xtr,ytr,alpha=0.8,lambda=1)
+glmnet9=glmnet(xtr,ytr,alpha=0.9,lambda=1)
+ridge=glmnet(xtr,ytr,alpha=0,lambda=1)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+#### (b.2) For ridge, Lasso and for $\alpha = .2, ,.4 ,.6$ plot the cross-validated (6 fold) MSE versus lambda as well as your optimal value of $lambda$ for ridge, Lasso and for $\alpha = .2, ,.4 ,.6$;
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+cv.out1=cv.glmnet(xtr,ytr,alpha=0,nfolds=6)
+plot(cv.out1)
+cat("Lambda with smallest CV Error for ridge",
+cv.out1$lambda[which.min(cv.out1$cvm)],fill=TRUE)
+
+cv.out2=cv.glmnet(xtr,ytr,alpha=0.2,nfolds=6)
+plot(cv.out2)
+cat("Lambda with smallest CV Error for alpha=0.2 ",
+cv.out2$lambda[which.min(cv.out2$cvm)],fill=TRUE)
+
+cv.out3=cv.glmnet(xtr,ytr,alpha=0.4,nfolds=6)
+plot(cv.out3)
+cat("Lambda with smallest CV Error for alpha=0.4",
+cv.out3$lambda[which.min(cv.out3$cvm)],fill=TRUE)
+
+cv.out4=cv.glmnet(xtr,ytr,alpha=0.6,nfolds=6)
+plot(cv.out4)
+cat("Lambda with smallest CV Error for alpha=0.6",
+cv.out4$lambda[which.min(cv.out4$cvm)],fill=TRUE)
+
+cv.out5=cv.glmnet(xtr,ytr,alpha=1,nfolds=6)
+plot(cv.out5)
+cat("Lambda with smallest CV Error for lasso",
+cv.out5$lambda[which.min(cv.out5$cvm)],fill=TRUE)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+#### (b.3) The number of non-zero regression coeffecients for each of the above techniques.
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+cat("Number of non-Zero Coefficients for lasso",
+sum(abs(coef(cv.out1))>1e-8),fill=TRUE)
+cat("Number of non-Zero Coefficients for alpha=0.2",
+sum(abs(coef(cv.out2))>1e-8),fill=TRUE)
+cat("Number of non-Zero Coefficients for alpha=0.4",
+sum(abs(coef(cv.out3))>1e-8),fill=TRUE)
+cat("Number of non-Zero Coefficients for alpha=0.6",
+sum(abs(coef(cv.out4))>1e-8),fill=TRUE)
+cat("Number of non-Zero Coefficients for ridge",
+sum(abs(coef(cv.out5))>1e-8),fill=TRUE)
+```
+
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+## High-Dimension Experiment (Sparse) (II) (Total score: 15)
+
+### (c) [5 pts] Simulate an independent **test** data set of the same type as above (response $y$ and $2000$ features per subject) with $n=10,000$. Use seed = 4567. 
+
+
+<!-- YOUR ANSWER BEGINS -->
+
+```{r}
+set.seed(4567)
+x_test <- matrix(rnorm(10000*2000),ncol=2000)
+beta <- c(rep(1,20),rep(0,1980))
+y_test <- x_test%*%beta + rnorm(10000)
+```
+
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (d) [10 pts] Using the models you obtained above using the training data set and the 11 models above, compute average test error for each of the 11 models. Which one is the "best" model?
+
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+y_predicted1 <- predict(lasso, newx=x_test,lambda=cv.glmnet())
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of lasso model is ", mse)
+
+y_predicted1 <- predict(glmnet1,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.1 model is ", mse)
+
+y_predicted1 <- predict(glmnet2,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.2 model is ", mse)
+
+y_predicted1 <- predict(glmnet3,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.3 model is ", mse)
+
+y_predicted1 <- predict(glmnet4,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.4 model is ", mse)
+
+y_predicted1 <- predict(glmnet5,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.5 model is ", mse)
+
+y_predicted1 <- predict(glmnet6,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.6 model is ", mse)
+
+y_predicted1 <- predict(glmnet7,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.7 model is ", mse)
+
+y_predicted1 <- predict(glmnet8,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.8 model is ", mse)
+
+y_predicted1 <- predict(glmnet9,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.9 model is ", mse)
+
+y_predicted1 <- predict(ridge,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of ridge model is ", mse)
+```
+
+The model with alpha=0.1 has the lowest testing error among all
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+# High-Dimension Experient (Moderately Dense)
+
+Conduct a simulated experiment as in Problem 3 but with moderately dense data-generating coefficient vector:
+
+\[ \mathbf{\beta}=(\underbrace{1,...,1}_{1000}, \underbrace{0,...,0}_{1000})^T. \]
+
+## High-Dimension Experient (Moderately Dense) (I) (Total score: 15)
+
+### (a) [5 pts] Generate the above data with seed = 8910.
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+set.seed(8910)
+xtr <- matrix(rnorm(1000*2000),ncol=2000)
+beta <- c(rep(1,1000),rep(0,1000))
+ytr <- xtr%*%beta + rnorm(1000)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (b) [10 pts, 3 parts each worth 5 pts] Using `glmnet` fit Lasso, ridge regression and elastic net with $\alpha = .1,.2,.3,.4,.5,.6,.7, .8, .9$. What I am looking for: (outputting the entire model for each one of the above is not-trivial so)
+
+#### (b.1) Code showing the fitting of each of the above models;
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+lasso=glmnet(xtr,ytr,alpha=1,lambda=1)
+glmnet1=glmnet(xtr,ytr,alpha=0.1,lambda=1)
+glmnet2=glmnet(xtr,ytr,alpha=0.2,lambda=1)
+glmnet3=glmnet(xtr,ytr,alpha=0.3,lambda=1)
+glmnet4=glmnet(xtr,ytr,alpha=0.4,lambda=1)
+glmnet5=glmnet(xtr,ytr,alpha=0.5,lambda=1)
+glmnet6=glmnet(xtr,ytr,alpha=0.6,lambda=1)
+glmnet7=glmnet(xtr,ytr,alpha=0.7,lambda=1)
+glmnet8=glmnet(xtr,ytr,alpha=0.8,lambda=1)
+glmnet9=glmnet(xtr,ytr,alpha=0.9,lambda=1)
+ridge=glmnet(xtr,ytr,alpha=0,lambda=1)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+#### (b.2) For ridge, Lasso and for $\alpha = .2, ,.4 ,.6$ plot the cross-validated (6 fold) MSE versus lambda as well as your optimal value of $lambda$ for ridge, Lasso and for $\alpha = .2, ,.4 ,.6$;
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+cv.out1=cv.glmnet(xtr,ytr,alpha=0,nfolds=6)
+plot(cv.out1)
+cat("Lambda with smallest CV Error for ridge",
+cv.out1$lambda[which.min(cv.out1$cvm)],fill=TRUE)
+
+cv.out2=cv.glmnet(xtr,ytr,alpha=0.2,nfolds=6)
+plot(cv.out2)
+cat("Lambda with smallest CV Error for alpha=0.2 ",
+cv.out2$lambda[which.min(cv.out2$cvm)],fill=TRUE)
+
+cv.out3=cv.glmnet(xtr,ytr,alpha=0.4,nfolds=6)
+plot(cv.out3)
+cat("Lambda with smallest CV Error for alpha=0.4",
+cv.out3$lambda[which.min(cv.out3$cvm)],fill=TRUE)
+
+cv.out4=cv.glmnet(xtr,ytr,alpha=0.6,nfolds=6)
+plot(cv.out4)
+cat("Lambda with smallest CV Error for alpha=0.6",
+cv.out4$lambda[which.min(cv.out4$cvm)],fill=TRUE)
+
+cv.out5=cv.glmnet(xtr,ytr,alpha=1,nfolds=6)
+plot(cv.out5)
+cat("Lambda with smallest CV Error for lasso",
+cv.out5$lambda[which.min(cv.out5$cvm)],fill=TRUE)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+#### (b.3) The number of non-zero regression coeffecients for each of the above techniques.
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+cat("Number of non-Zero Coefficients for lasso",
+sum(abs(coef(cv.out1))>1e-8),fill=TRUE)
+cat("Number of non-Zero Coefficients for alpha=0.2",
+sum(abs(coef(cv.out2))>1e-8),fill=TRUE)
+cat("Number of non-Zero Coefficients for alpha=0.4",
+sum(abs(coef(cv.out3))>1e-8),fill=TRUE)
+cat("Number of non-Zero Coefficients for alpha=0.6",
+sum(abs(coef(cv.out4))>1e-8),fill=TRUE)
+cat("Number of non-Zero Coefficients for ridge",
+sum(abs(coef(cv.out5))>1e-8),fill=TRUE)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+## High-Dimension Experient (Moderately Dense) (II) (Total score: 15)
+
+### (c) [5 pts] Simulate an independent **test** data set of the same type as above (response $y$ and $2000$ features per subject) with $n=10,000$. Use seed = 1112.
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+set.seed(1112)
+x_test <- matrix(rnorm(10000*2000),ncol=2000)
+beta <- c(rep(1,1000),rep(0,1000))
+y_test <- x_test%*%beta + rnorm(10000)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (d) [10 pts] Using the models you obtained above using the training data set and the 11 models above, compute average test error for each of the 11 models. Which one is the "best" model?
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+y_predicted1 <- predict(lasso, newx=x_test,lambda=cv.glmnet())
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of lasso model is ", mse)
+
+y_predicted1 <- predict(glmnet1,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.1 model is ", mse)
+
+y_predicted1 <- predict(glmnet2,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.2 model is ", mse)
+
+y_predicted1 <- predict(glmnet3,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.3 model is ", mse)
+
+y_predicted1 <- predict(glmnet4,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.4 model is ", mse)
+
+y_predicted1 <- predict(glmnet5,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.5 model is ", mse)
+
+y_predicted1 <- predict(glmnet6,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.6 model is ", mse)
+
+y_predicted1 <- predict(glmnet7,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.7 model is ", mse)
+
+y_predicted1 <- predict(glmnet8,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.8 model is ", mse)
+
+y_predicted1 <- predict(glmnet9,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of alpha=0.9 model is ", mse)
+
+y_predicted1 <- predict(ridge,  newx = x_test)
+mse=mean((y_predicted1-y_test)^2)
+cat("The testing error of ridge model is ", mse)
+```
+
+The Ridge regression produces the lowest testing error among all
+<!-- YOUR ANSWER ENDS -->
+
+***

@@ -1,0 +1,310 @@
+---
+title: "STOR 565 Homework 6"
+output:
+  html_document: 
+    number_sections: TRUE
+header-includes: 
+  \usepackage{amsgen,amsmath,amstext,amsbsy,amsopn,amssymb,mathabx,amsthm,bm,bbm}
+  \usepackage{fancyhdr}
+  \pagestyle{fancy}
+  \fancyhead[R]{\leftmark}
+  \lhead{\fancyplain{}{\bf Question Outline \thesection}}
+  \setcounter{secnumdepth}{2}
+  \renewcommand{\linethickness}{0.05em}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if(!require(ISLR)) { install.packages("ISLR", repos = "http://cran.us.r-project.org"); library(ISLR) }
+if(!require(leaps)) { install.packages("leaps", repos = "http://cran.us.r-project.org"); library(leaps) }
+if(!require(glmnet)) { install.packages("glmnet", repos = "http://cran.us.r-project.org"); library(glmnet) }
+if(!require(pls)) { install.packages("pls", repos = "http://cran.us.r-project.org"); library(pls) }
+```
+Name:Qingcheng Wei
+
+Collaborated with:
+
+**This homework is due on Feb. 27st at 11:55 pm.**
+
+Instruction: fill your answers in the `.Rmd`, compile it to HTML/PDF and submit the complied file. Uncompiled `.Rmd` file will not be graded. 
+
+
+*Remark.* This homework aims to help you understand PCA and its applications. 
+
+
+# NBA Dataset
+
+Import the dataset from "nba-teams-2017.csv". Create a new `data.frame` that contains the following columns:
+
+- `team`
+- `wins`
+- `points`
+- `points3`
+- `free_throws`
+- `off_rebounds`
+- `def_rebounds`
+- `assists`
+- `steals`
+- `personal_fouls`
+
+### (a) (*5 pt*) Create box plots of the quantitative features (i.e. all but) teams to see if you should scale the data when performing PCA. Describe your findings in words.
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+library(dplyr)
+data=read.csv("nba-teams-2017.csv")
+col=data.frame(data[,c("team","wins","points","points3","free_throws","off_rebounds","def_rebounds","assists","steals","personal_fouls")])
+boxplot(col %>% select(-team))
+```
+
+we should scale the data as the variance for wins is much larger than the others. 
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (b) (*5 pt*) Obtain PC loadings of the first four princple components (PCs). Only display the first few elements of each loading in your report.
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+pca_bball <- prcomp(col %>% select(-team), scale = TRUE)
+pca_bball$rotation[,1:4]
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (c) (*5 pt*) Generate a scree plot describing the amount explained by the various PCs.
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+screeplot(pca_bball, type = "l", npcs = 15, main = "Screeplot of the first 10 PCs")
+abline(h = 1, col="red", lty=5)
+legend("topright", legend=c("Eigenvalue = 1"),
+       col=c("red"), lty=5, cex=0.6)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (d) (*5 pt*) Make another plot showing the cumulative percent of the variance explained. 
+
+Precisely: for each $1\leq k \leq 10$ you are plotting:
+
+\[\frac{\sum_{j=1}^k d_{j}^2}{\sum_{j=1}^{10} d_j^2}. \]
+		
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+cumpro <- cumsum(pca_bball$sdev^2 / sum(pca_bball$sdev^2))
+plot(cumpro[0:15], xlab = "PC #", ylab = "Amount of explained variance", main = "Cumulative variance plot")
+abline(h = 0.9, col="blue", lty=5)
+legend("topleft", legend=c("Cut-off @ PC6"),
+       col=c("blue"), lty=5, cex=0.6)
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (e) (*5 pt*) If you were to retain all PCs which explain at least 90\% of the variance, how many PCs would you retain?
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+By looking at the plot, if we want to retain 90% of the variance, we would keep 5 PCs.
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (f) (*10 pt*) Plot PC1 vs PC2 with the team names and try to interpret your findings. 
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+pca_scores <- pca_bball$x # PCs/ PC scores 
+
+low_dim_rep <- pca_scores %>% 
+  data.frame() %>% 
+  mutate(team = col$team) %>% 
+  select(team, everything())
+
+library(ggplot2)
+ggplot(low_dim_rep, aes(x = PC1, y = PC2)) +
+ geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  geom_text(aes(label = team), size = 2) +
+  coord_cartesian(xlim = c(-8, 5)) +
+  theme_linedraw()
+```
+
+The team that's close with each other within the plot shows similarity in its data and the team that's far away each other shows difference in its performance. In fact, for example, the Phoniex Suns has a larger variation with the rest of the team, wehreas GSW did extremly well in 2017 also sit away from the center of the plot. 
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+	
+# RedfinHouse Image
+
+Import the image from "Redfin_house.png". Let $X$ be the pixel intensity associated with the **red color** in the image. 
+
+**Hints.** 
+
+- Review tutorial in "`HM6/More PCA Examples`" in class dropbox folder. **Example 2** can be useful for this problem, e.g., how to load the png image data to R use R function `readPNG`. 
+
+- See the **Value** section of `?png::readPNG` to remind yourself of the organization of the raster array output.
+
+### (a) (*5 pt*) What are the dimensions of $X$? Plot a histogram of the pixel intensities within the image.
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+library(png, quietly = TRUE)
+library(grid, quietly = TRUE)
+```
+
+```{r}
+directory <- "Redfin_house.png"
+img <- readPNG(directory)
+img_plot <- as.raster(img)
+grid.raster(img_plot)
+
+img_red_only <- img[, , 1]
+img.out <- prcomp(img_red_only, scale = TRUE)
+dim(img.out$x)
+
+hist(img_red_only,
+     main = "The pixel intensities of Img",
+     col = "blue")
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (b) (*10 pt*) Now let's do PCA for the row vectors in $X$. Plot the scree plots for this data, which illustrate the percentage variation explained against the number of principal components and the cumulative percentage variation explained against the number of principal components. How many PCs are needed to explain 90\% of the total variation of $X$?
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+pr.var <- img.out$sdev^2
+pve <- pr.var / sum(pr.var)
+par(mfrow = c(1,2))
+plot(pve, xlab = "Principal Component", ylab = "Proportion of Variance Explained")
+plot(cumsum(pve), xlab = "Principal Component", ylab = "Cumulative Proportion of 
+     Variance Explained", ylim = c(0, 1), type = "b", xlim = c(1, 50))
+```
+
+```{r}
+cum_explained1=cumsum((img.out$sdev)^2)/sum((img.out$sdev)^2)
+cat("Num of PCs to explain at least 90% of variation is ", length(cum_explained1[cum_explained1<=0.9])+1)
+```
+```{r}
+cumsum(pve)
+```
+
+
+<!-- YOUR ANSWER ENDS -->
+
+***
+
+\newpage
+
+### (c) (*10 pt*) For $d = 1, 5, 10, 15, 20, 30, 50, 100, 200$ project the image onto the first $d$ principal components and plot the resulting compressed image for each $d$. For each of the nine plots, include the cumulative percentage variation explained by the projection in the title of your plots. 
+
+**\textcolor{blue}{Answer:}**
+<!-- YOUR ANSWER BEGINS -->
+```{r}
+pr.out=img.out
+W <- pr.out$rotation #the loading matrix
+pc.image <- list()
+num.pcs <- c(1, 5, 10, 15, 20, 30, 50, 100, 200)
+
+#scale the original image
+Image <- scale(img_red_only)
+for(j in 1:length(num.pcs)){
+  u.proj <- W
+  #we will only use the first num.pcs PC loadings so set the remaining to 0
+  u.proj[, (num.pcs[j] + 1) : 396] <- 0 
+  
+  #Make the projection
+  projection <- (Image%*%u.proj)%*%t(u.proj)
+  
+  #to draw an image, values need to be between 0 and 1
+  scaled <- (projection - min(as.numeric(projection)))
+  scaled <- scaled / max(as.numeric(scaled))
+  pc.image[[j]] <- as.raster(scaled)
+}
+
+#plot each of the images
+  grid.raster(pc.image[[1]])
+  cumsum(pve)[1]
+```
+
+
+```{r}
+grid.raster(pc.image[[2]])
+  cumsum(pve)[5]
+```
+
+
+```{r}
+grid.raster(pc.image[[3]])
+  cumsum(pve)[10]
+```
+
+
+```{r}
+grid.raster(pc.image[[4]])
+cumsum(pve)[15]
+```
+
+
+```{r}
+grid.raster(pc.image[[5]])
+  cumsum(pve)[20]
+```
+
+
+```{r}
+grid.raster(pc.image[[6]])
+  cumsum(pve)[30]
+```
+
+
+```{r}
+grid.raster(pc.image[[7]])
+  cumsum(pve)[50]
+```
+
+
+```{r}
+grid.raster(pc.image[[8]])
+  cumsum(pve)[100]
+```
+
+
+```{r}
+grid.raster(pc.image[[9]])
+  cumsum(pve)[200]
+```
+
+<!-- YOUR ANSWER ENDS -->
+
+***
